@@ -13,6 +13,7 @@ import {
   type DateParts,
 } from './birthdate';
 import { candleRow } from './candles';
+import { kingFor } from './kings';
 import { addMonthsClamped, toDayNumber, todayLocal, type DayNumber } from './dates';
 import { occurrencesForPerson, primaryLabel, type Occurrence, type Person, type Source } from './events';
 import { ageText, dayFormats, daysText, errorText, listText, methodsText, relativeDays } from './format';
@@ -180,6 +181,30 @@ function persist(state: AppState): void {
 const DENOMINATOR_HINT =
   'Every fraction is counted in weeks and in days. Halves, thirds, quarters, sixths and twelfths are also counted in months. The Me view stops at twelfths.';
 const ROUNDED_LEGEND = ' ≈ marks a date rounded to the nearest week.';
+
+/** The king with this fraction's numeral, puffing a GIF of wind at the candles. */
+function royalBlow(f: Fraction): HTMLElement {
+  const king = kingFor(f);
+  const candles = candleRow(f);
+  if (!king) return h('div', { class: 'royal-blow' }, candles);
+  return h(
+    'div',
+    { class: 'royal-blow' },
+    h(
+      'figure',
+      { class: 'king' },
+      h('img', { src: king.src, alt: `Portrait of ${king.name}`, width: 160, height: 200 }),
+      h('figcaption', null, king.spoken),
+    ),
+    h(
+      'picture',
+      { class: 'gust' },
+      h('source', { srcset: './kings/gust-still.gif', media: '(prefers-reduced-motion: reduce)' }),
+      h('img', { src: './kings/gust.gif', alt: '', width: 120, height: 78 }),
+    ),
+    candles,
+  );
+}
 
 /** A hit counter in the old style, counting this device's visits (nothing leaves the browser). */
 function visitorCount(): string {
@@ -597,7 +622,8 @@ export function mountApp(root: HTMLElement): void {
         'div',
         { class: `next-card tier-${tierOf(next.q)}` },
         h('div', { class: 'eyebrow' }, `Next up · ${relativeDays(today, next.date)}`),
-        h('div', { class: 'next-fraction' }, fractionText(next), candleRow(next)),
+        h('div', { class: 'next-fraction' }, fractionText(next)),
+        royalBlow(next),
         h('div', { class: 'next-date' }, dayFormats.full(next.date)),
         datesList(next),
         h('div', { class: 'next-age' }, `${turnPhrase(me.name)} `, ageNode(next.years, next)),

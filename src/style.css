@@ -333,14 +333,6 @@ input[type="range"] {
   overflow: visible;
 }
 
-/* On a phone the name wraps anyway, so keep the candles beside the fraction and give the name its own line. */
-@media (max-width: 420px) {
-  .next-fraction .fname {
-    order: 1;
-    flex-basis: 100%;
-  }
-}
-
 .candles .candle-wax {
   fill: var(--candle);
 }
@@ -1081,13 +1073,83 @@ summary:focus-visible {
   outline: 2px dotted #ffff00;
 }
 
+/* The next-up king, his breath, and the candles he is blowing at. */
+.royal-blow {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.king {
+  flex: none;
+  width: 84px;
+  margin: 0;
+  text-align: center;
+}
+
+.king img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 5px ridge #d4a017;
+  box-shadow: 3px 3px 0 #000000;
+  background: #000000;
+}
+
+.king figcaption {
+  margin-top: 4px;
+  font-family: "Times New Roman", Times, serif;
+  font-style: italic;
+  font-weight: 700;
+  font-size: 0.8rem;
+  line-height: 1.1;
+  color: #800000;
+}
+
+.gust {
+  flex: 1 1 60px;
+  min-width: 40px;
+  max-width: 120px;
+  align-self: flex-start;
+  /* Level with the king's mouth, about halfway down the portrait. */
+  margin-top: 36px;
+}
+
+.gust img {
+  display: block;
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+}
+
+.royal-blow .candles {
+  flex: 0 1 auto;
+  min-width: 0;
+  height: 3.8rem;
+  align-self: flex-start;
+  margin-top: 20px;
+}
+
+/* Blown sideways, away from the king, recovering between puffs. */
+.royal-blow .candles .flame {
+  animation: blown 0.88s ease-in-out infinite;
+}
+
+@keyframes blown {
+  0%, 100% { transform: rotate(8deg) scale(1, 1); }
+  40% { transform: rotate(55deg) scale(0.75, 0.6); }
+  60% { transform: rotate(62deg) scale(0.7, 0.5); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .marquee span,
   .hero h1,
   .construction,
   .eyebrow::before,
   .tier-0 .frac-line,
-  .celebration.tier-0 .rank {
+  .celebration.tier-0 .rank,
+  .royal-blow .candles .flame {
     animation: none;
   }
 

@@ -59,8 +59,30 @@ src/modes.ts      the three modes as strategy objects
 src/events.ts     fractional birthdays for one person, by date and by fraction
 src/mutual.ts     shared-celebration search and ranking
 src/format.ts     Intl date formatting and small text helpers
+src/kings.ts      the king whose numeral matches a denominator
 src/ics.ts        iCalendar export
 src/url.ts        app state and its round trip through the URL hash
 src/ui.ts         the page (plain DOM, no framework)
 tests/            Vitest unit tests for everything above except the UI
 ```
+
+## King portraits
+
+The next-up card shows the king whose numeral matches the fraction's denominator. The portraits in `public/kings/` are cropped from public-domain paintings on Wikimedia Commons, each the lead image of its king's English Wikipedia article:
+
+| # | King | Source file |
+|---|------|-------------|
+| I | Francis I of France | François_Ier_Louvre.jpg (Jean Clouet) |
+| II | Charles II of England | King_Charles_II_by_John_Michael_Wright_or_studio.jpg |
+| III | George III | Allan_Ramsay_-_King_George_III_in_coronation_robes_-_Google_Art_Project.jpg |
+| IV | Henri IV of France | Frans_Pourbus_the_Younger_…_Henri_IV,_King_of_France_…_RCIN_402972_-_Royal_Collection.jpg |
+| V | Charles V, Holy Roman Emperor | Portrait_of_Charles_V,_Holy_Roman_Emperor,_seated_…_(Alte_Pinakothek,_Munich).jpg |
+| VI | Henry VI of England | Henry_VI_of_England,_Shrewsbury_book.jpg |
+| VII | Edward VII | King-Edward-VII_(cropped)_(b).jpg |
+| VIII | Henry VIII | After_Hans_Holbein_the_Younger_-_Portrait_of_Henry_VIII_-_Google_Art_Project.jpg |
+| IX | Louis IX of France | Saintlouis_(cropped).jpg |
+| X | Charles X of France | Carlos_X_de_Francia_(François_Gérard).jpg |
+| XI | Louis XI | Louis_XI_(1423-1483).jpg |
+| XII | Charles XII of Sweden | Copy_Charles_XII_-_Nationalmuseum_-_17886.png |
+
+`gust.gif` (and its still frame for reduced motion) is pixel art drawn for this project.
