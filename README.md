@@ -15,6 +15,12 @@ npm run build     # type-check and build to dist/
 
 `dist/` is plain static files with relative paths, so it can be dropped on GitHub Pages, Cloudflare Pages, Netlify or any web server.
 
+## Deploying
+
+Every push to `main` runs `.github/workflows/deploy.yml`, which installs dependencies, runs the tests, builds the site and publishes `dist/` to GitHub Pages. It can also be started by hand from the Actions tab.
+
+The workflow enables Pages on its first run. If that step is refused, open the repository's Settings, choose Pages, set the source to "GitHub Actions", and re-run the workflow. The site then lives at `https://<user>.github.io/<repository>/`.
+
 ## How the math works
 
 A fractional birthday is the point p/q of the way through a birthday-year, with p/q in lowest terms. The smaller the denominator, the more major it is. Denominators run from 2 to 13 and can be toggled individually.
