@@ -181,6 +181,18 @@ const DENOMINATOR_HINT =
   'Every fraction is counted in weeks and in days. Halves, thirds, quarters, sixths and twelfths are also counted in months. The Me view stops at twelfths.';
 const ROUNDED_LEGEND = ' ≈ marks a date rounded to the nearest week.';
 
+/** A hit counter in the old style, counting this device's visits (nothing leaves the browser). */
+function visitorCount(): string {
+  let count = 1;
+  try {
+    count = Number(localStorage.getItem('fb-visits') ?? '0') + 1;
+    localStorage.setItem('fb-visits', String(count));
+  } catch {
+    // Storage blocked: every visit is the first.
+  }
+  return String(count).padStart(6, '0');
+}
+
 function helpBody(): HTMLElement {
   return h(
     'div',
@@ -273,10 +285,16 @@ export function mountApp(root: HTMLElement): void {
     'div',
     { class: 'app' },
     h(
+      'div',
+      { class: 'marquee', 'aria-hidden': 'true' },
+      h('span', null, '*~*~* WELCOME 2 MY HOMEPAGE!!! *~*~* Celebrate EVERY fraction of your birthday *~*~* Sign my guestbook!!! *~*~*'),
+    ),
+    h(
       'header',
       { class: 'hero' },
       h('h1', null, 'Fractional ', h('span', null, 'Birthdays')),
       h('p', { class: 'tagline' }, 'Half birthdays, third birthdays, and the days a whole group can celebrate at once.'),
+      h('p', { class: 'construction' }, '\u{1F6A7} UNDER CONSTRUCTION \u{1F6A7}'),
     ),
     h('nav', { class: 'tabs', role: 'tablist', 'aria-label': 'View' }, tabButtons.me, tabButtons.together),
     h('section', { class: 'card people' }, h('h2', { class: 'card-title' }, 'Birthdays'), peopleList, addButton),
@@ -284,7 +302,14 @@ export function mountApp(root: HTMLElement): void {
     results,
     h('section', { class: 'actions' }, shareButton, icsButton),
     h('details', { class: 'card help' }, h('summary', null, 'How the math works'), helpBody()),
-    h('footer', { class: 'foot' }, 'Everything runs in your browser. Birthdays live only in the link and on this device.'),
+    h(
+      'footer',
+      { class: 'foot' },
+      h('p', null, 'Everything runs in your browser. Birthdays live only in the link and on this device.'),
+      h('p', { class: 'counter' }, 'You are visitor # ', h('span', { class: 'counter-digits' }, visitorCount())),
+      h('p', { class: 'webring' }, '<< prev', h('span', null, '| Fractional Birthday WebRing |'), 'next >>'),
+      h('p', { class: 'best-viewed' }, 'Best viewed in Netscape Navigator 4.0 at 800x600'),
+    ),
   );
   root.replaceChildren(app);
 
