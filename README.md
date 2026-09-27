@@ -19,7 +19,7 @@ npm run build     # type-check and build to dist/
 
 Every push to `main` runs `.github/workflows/deploy.yml`, which installs dependencies, runs the tests, builds the site and publishes `dist/` to GitHub Pages. It can also be started by hand from the Actions tab.
 
-The workflow enables Pages on its first run. If that step is refused, open the repository's Settings, choose Pages, set the source to "GitHub Actions", and re-run the workflow. The site then lives at `https://<user>.github.io/<repository>/`.
+Pages has to be switched on once per repository, with the source set to "GitHub Actions" (Settings, then Pages), because the workflow's own token is not allowed to do it. For this repository that is done, and the site lives at https://wobblybits.github.io/fractionalbdays/.
 
 ## How the math works
 
