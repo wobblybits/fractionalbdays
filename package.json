@@ -1,0 +1,20 @@
+{
+  "name": "fractionalbdays",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Fractional birthday calculator: calendar of your fractional birthdays and ranked mutual celebration dates",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vite": "^7.0.0",
+    "vitest": "^3.2.0"
+  }
+}

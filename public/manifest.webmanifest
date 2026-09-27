@@ -1,0 +1,10 @@
+{
+  "name": "Fractional Birthdays",
+  "short_name": "Fractional",
+  "description": "Half, third and quarter birthdays, and the days a whole group can celebrate together.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f6f2ea",
+  "theme_color": "#c53d2f",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
