@@ -3,7 +3,7 @@ import { fromDayNumber, toDayNumber, type CivilDate } from '../src/dates';
 import { primaryLabel, type Person } from '../src/events';
 import { denominatorsUpTo } from '../src/fractions';
 import { MODES, monthsMode, weeksMode } from '../src/modes';
-import { compareCelebrations, rankCelebrations, type Celebration } from '../src/mutual';
+import { byDenominator, compareCelebrations, rankCelebrations, type Celebration } from '../src/mutual';
 
 const civil = (y: number, m: number, d: number): CivilDate => ({ y, m, d });
 const ALL = denominatorsUpTo(13);
@@ -97,6 +97,17 @@ describe('ranking with every mode at once', () => {
     // A half by days for the first person, by months for the second.
     expect(ranked[0]).toMatchObject({ sumQ: 4, spread: 0, days: [day(7, 17)] });
     expect(ranked[0]!.events.map(modesOf)).toEqual([['days'], ['months']]);
+  });
+
+  it('lists the people in a celebration by denominator, keeping their order on ties', () => {
+    const ranked = rankCelebrations(people(civil(1990, 1, 15), civil(1992, 7, 15)), MODES, ALL, from, to, 0);
+    // On July 15 the first person has a half birthday and the second a birthday, so the second comes first.
+    const july = ranked.find((c) => labels(c).join(' ') === '1/2 0/1')!;
+    expect(byDenominator(july).map((x) => x.index)).toEqual([1, 0]);
+    const january = ranked.find((c) => labels(c).join(' ') === '0/1 1/2')!;
+    expect(byDenominator(january).map((x) => x.index)).toEqual([0, 1]);
+    const twins = rankCelebrations(people(civil(1990, 3, 10), civil(1985, 3, 10)), MODES, ALL, from, to, 0);
+    expect(byDenominator(twins[0]!).map((x) => x.index)).toEqual([0, 1]);
   });
 
   it('merges a third and a quarter that line up two ways', () => {

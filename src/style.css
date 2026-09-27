@@ -649,11 +649,6 @@ input[type="range"] {
   font-size: 1.05rem;
 }
 
-.cel-score {
-  color: var(--muted);
-  font-size: 0.875rem;
-}
-
 .cel-people {
   list-style: none;
   margin: 8px 0 0;
@@ -674,12 +669,6 @@ input[type="range"] {
   font-weight: 600;
 }
 
-.cel-people .cel-frac {
-  font-size: 1.15rem;
-  font-weight: 700;
-  color: var(--accent);
-}
-
 .cel-people .cel-on {
   display: flex;
   flex-wrap: wrap;
@@ -688,6 +677,12 @@ input[type="range"] {
   color: var(--muted);
   font-size: 0.875rem;
   margin-left: auto;
+}
+
+.cel-people .cel-frac {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--accent);
 }
 
 .actions {

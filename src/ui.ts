@@ -19,7 +19,7 @@ import { ageText, dayFormats, daysText, errorText, listText, methodsText, relati
 import { denominatorWord, denominatorsUpTo, fractionName, type Fraction } from './fractions';
 import { calendarForCelebrations, calendarForOccurrences } from './ics';
 import { MODES, modesSupporting } from './modes';
-import { rankCelebrations, type Celebration } from './mutual';
+import { byDenominator, rankCelebrations, type Celebration } from './mutual';
 import {
   MAX_DENOMINATOR,
   MAX_WINDOW_DAYS,
@@ -664,10 +664,8 @@ export function mountApp(root: HTMLElement): void {
     return nodes;
   }
 
+  /** The day or days, then who celebrates what, most major fraction first, with the dates each fraction falls on. */
   function celebrationItem(c: Celebration, rank: number, people: Person[]): HTMLElement {
-    const quality =
-      c.maxQ === 1 ? 'everyone on their actual birthday' : `everyone at ${denominatorWord(c.maxQ, true)} or better`;
-    const spread = c.spread === 0 ? '' : ` · ${c.spread} ${c.spread === 1 ? 'day' : 'days'} apart`;
     return h(
       'li',
       { class: `celebration tier-${tierOf(c.maxQ)}` },
@@ -676,19 +674,17 @@ export function mountApp(root: HTMLElement): void {
         'div',
         { class: 'cel-body' },
         h('div', { class: 'cel-date' }, daysText(c.days)),
-        h('div', { class: 'cel-score' }, `Score ${c.sumQ} · ${quality}${spread}`),
         h(
           'ul',
           { class: 'cel-people' },
-          c.events.map((e, i) => {
-            const label = primaryLabel(e);
-            const dated = (c.personEvents[i] ?? [e]).map((ev) => datedNode(ev.date, primaryLabel(ev).sources, label.q));
+          byDenominator(c).map(({ index, event }) => {
+            const label = primaryLabel(event);
+            const dated = (c.personEvents[index] ?? [event]).map((e) => datedNode(e.date, primaryLabel(e).sources, label.q));
             return h(
               'li',
               null,
-              h('span', { class: 'who' }, people[i]?.name ?? '?'),
+              h('span', { class: 'who' }, people[index]?.name ?? '?'),
               h('span', { class: 'cel-frac' }, label.p === 0 ? '\u{1F382}' : fractionNode(label)),
-              ageNode(e.years, label),
               h('span', { class: 'cel-on' }, dated),
             );
           }),

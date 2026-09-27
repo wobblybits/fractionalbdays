@@ -7,7 +7,7 @@ import { fromDayNumber, type DayNumber } from './dates';
 import { primaryLabel, type Occurrence, type Person } from './events';
 import { fractionName } from './fractions';
 import { ageText, dayFormats, daysText, methodsText } from './format';
-import type { Celebration } from './mutual';
+import { byDenominator, type Celebration } from './mutual';
 
 interface IcsEvent {
   uid: string;
@@ -103,9 +103,9 @@ export function calendarForOccurrences(occurrences: Occurrence[], person: Person
 
 export function calendarForCelebrations(celebrations: Celebration[], people: Person[]): string {
   const items = celebrations.map((c) => {
-    const parts = c.events.map((e, i) => {
-      const label = primaryLabel(e);
-      return `${people[i]?.name ?? '?'} ${ageText(e.years, label)} on ${dayFormats.short(e.date)}`;
+    const parts = byDenominator(c).map(({ index, event }) => {
+      const label = primaryLabel(event);
+      return `${people[index]?.name ?? '?'} ${ageText(event.years, label)} on ${dayFormats.short(event.date)}`;
     });
     const notes = [
       c.days.length > 1 ? `Works on ${daysText(c.days)}.` : '',

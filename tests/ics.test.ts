@@ -52,8 +52,10 @@ describe('iCalendar export', () => {
       { id: 'b', name: 'Alex', birth: { y: 1992, m: 7, d: 15 } },
     ];
     const ranked = rankCelebrations(people, [monthsMode], denominatorsUpTo(13), from, to, 0);
-    const ics = calendarForCelebrations(ranked.slice(0, 3), people);
+    const ics = calendarForCelebrations(ranked.slice(0, 3), people).replace(/\r\n /g, '');
     expect(ics.match(/BEGIN:VEVENT/g)).toHaveLength(3);
     expect(ics).toContain('Sam 36 on Jan 15');
+    // Lowest denominator first: Alex's birthday before Sam's half birthday.
+    expect(ics).toContain('SUMMARY:Fractional birthday party: Alex 34 on Jul 15\\, Sam 36 1/2 on Jul 15');
   });
 });

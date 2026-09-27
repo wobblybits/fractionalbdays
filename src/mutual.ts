@@ -34,6 +34,13 @@ export function compareCelebrations(a: Celebration, b: Celebration): number {
   return a.sumQ - b.sumQ || a.maxQ - b.maxQ || a.spread - b.spread || a.first - b.first;
 }
 
+/** Everyone's event in a celebration, lowest denominator first; ties keep the order the people were given in. */
+export function byDenominator(c: Celebration): { index: number; event: BirthdayEvent }[] {
+  return c.events
+    .map((event, index) => ({ index, event }))
+    .sort((a, b) => primaryLabel(a.event).q - primaryLabel(b.event).q || a.index - b.index);
+}
+
 /** Between two of one person's events near `day`: the lower denominator, then the closer date, then one that is not rounded. */
 function betterFor(day: DayNumber, candidate: BirthdayEvent, current: BirthdayEvent): boolean {
   const qDiff = primaryLabel(candidate).q - primaryLabel(current).q;
