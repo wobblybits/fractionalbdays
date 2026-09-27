@@ -1073,32 +1073,71 @@ summary:focus-visible {
   outline: 2px dotted #ffff00;
 }
 
-/* The next-up king, his breath, and the candles he is blowing at. */
+/* The candles, and the next-up king blowing at them from the right. */
 .royal-blow {
+  --king-w: 112px;
+  --king-h: calc(var(--king-w) * 1.15);
   display: flex;
   align-items: flex-start;
-  gap: 4px;
+  justify-content: center;
+  gap: 48px;
   margin-top: 10px;
+}
+
+@media (max-width: 420px) {
+  .royal-blow {
+    --king-w: 96px;
+    gap: 36px;
+  }
+}
+
+.royal-blow .candles {
+  position: relative;
+  z-index: 2;
+  flex: 0 1 auto;
+  min-width: 0;
+  height: 3.8rem;
+  align-self: flex-start;
+  /* Flames level with the king's lips. */
+  margin-top: max(0px, calc(var(--mouth-y) * var(--king-h) - 1.5rem));
 }
 
 .king {
   flex: none;
-  width: 84px;
+  width: var(--king-w);
   margin: 0;
   text-align: center;
 }
 
-.king img {
+.king-art {
+  position: relative;
+}
+
+.king-art > img {
   display: block;
   width: 100%;
   height: auto;
-  border: 5px ridge #d4a017;
-  box-shadow: 3px 3px 0 #000000;
-  background: #000000;
+}
+
+.breath {
+  position: absolute;
+  z-index: 1;
+  right: calc((1 - var(--mouth-x)) * 100%);
+  top: calc(var(--mouth-y) * 100%);
+  width: 120px;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.breath img {
+  display: block;
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
 }
 
 .king figcaption {
-  margin-top: 4px;
+  margin-top: 2px;
   font-family: "Times New Roman", Times, serif;
   font-style: italic;
   font-weight: 700;
@@ -1107,39 +1146,15 @@ summary:focus-visible {
   color: #800000;
 }
 
-.gust {
-  flex: 1 1 60px;
-  min-width: 40px;
-  max-width: 120px;
-  align-self: flex-start;
-  /* Level with the king's mouth, about halfway down the portrait. */
-  margin-top: 36px;
-}
-
-.gust img {
-  display: block;
-  width: 100%;
-  height: auto;
-  image-rendering: pixelated;
-}
-
-.royal-blow .candles {
-  flex: 0 1 auto;
-  min-width: 0;
-  height: 3.8rem;
-  align-self: flex-start;
-  margin-top: 20px;
-}
-
-/* Blown sideways, away from the king, recovering between puffs. */
+/* Blown to the left, away from the king, recovering between breaths. */
 .royal-blow .candles .flame {
   animation: blown 0.88s ease-in-out infinite;
 }
 
 @keyframes blown {
-  0%, 100% { transform: rotate(8deg) scale(1, 1); }
-  40% { transform: rotate(55deg) scale(0.75, 0.6); }
-  60% { transform: rotate(62deg) scale(0.7, 0.5); }
+  0%, 100% { transform: rotate(-8deg) scale(1, 1); }
+  40% { transform: rotate(-55deg) scale(0.75, 0.6); }
+  60% { transform: rotate(-62deg) scale(0.7, 0.5); }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -182,27 +182,33 @@ const DENOMINATOR_HINT =
   'Every fraction is counted in weeks and in days. Halves, thirds, quarters, sixths and twelfths are also counted in months. The Me view stops at twelfths.';
 const ROUNDED_LEGEND = ' ≈ marks a date rounded to the nearest week.';
 
-/** The king with this fraction's numeral, puffing a GIF of wind at the candles. */
+/** The candles, and the king with this fraction's numeral blowing at them from the right. */
 function royalBlow(f: Fraction): HTMLElement {
   const king = kingFor(f);
   const candles = candleRow(f);
   if (!king) return h('div', { class: 'royal-blow' }, candles);
+  const [mx, my] = king.mouth;
   return h(
     'div',
-    { class: 'royal-blow' },
+    { class: 'royal-blow', style: `--mouth-x: ${mx}; --mouth-y: ${my}` },
+    candles,
     h(
       'figure',
       { class: 'king' },
-      h('img', { src: king.src, alt: `Portrait of ${king.name}`, width: 160, height: 200 }),
+      h(
+        'div',
+        { class: 'king-art' },
+        h('img', { src: king.src, alt: `Portrait of ${king.name}`, width: 240, height: 276 }),
+        // Its right edge sits on the lips, so the breath leaves the mouth.
+        h(
+          'picture',
+          { class: 'breath' },
+          h('source', { srcset: './kings/breath-still.gif', media: '(prefers-reduced-motion: reduce)' }),
+          h('img', { src: './kings/breath.gif', alt: '', width: 132, height: 60 }),
+        ),
+      ),
       h('figcaption', null, king.spoken),
     ),
-    h(
-      'picture',
-      { class: 'gust' },
-      h('source', { srcset: './kings/gust-still.gif', media: '(prefers-reduced-motion: reduce)' }),
-      h('img', { src: './kings/gust.gif', alt: '', width: 120, height: 78 }),
-    ),
-    candles,
   );
 }
 

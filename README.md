@@ -68,7 +68,7 @@ tests/            Vitest unit tests for everything above except the UI
 
 ## King portraits
 
-The next-up card shows the king whose numeral matches the fraction's denominator. The portraits in `public/kings/` are cropped from public-domain paintings on Wikimedia Commons, each the lead image of its king's English Wikipedia article:
+The next-up card shows the king whose numeral matches the fraction's denominator, blowing out the candles. The busts in `public/kings/` are cut out of public-domain paintings on Wikimedia Commons, each the lead image of its king's English Wikipedia article. Backgrounds were removed with macOS Vision subject lifting, the face and lips located with Vision face landmarks (the lip positions live in `src/kings.ts`), and kings looking to the right were mirrored so every one faces the candles:
 
 | # | King | Source file |
 |---|------|-------------|
@@ -85,4 +85,4 @@ The next-up card shows the king whose numeral matches the fraction's denominator
 | XI | Louis XI | Louis_XI_(1423-1483).jpg |
 | XII | Charles XII of Sweden | Copy_Charles_XII_-_Nationalmuseum_-_17886.png |
 
-`gust.gif` (and its still frame for reduced motion) is pixel art drawn for this project.
+`breath.gif` (and its still frame for reduced motion) is pixel art drawn for this project; its right edge is placed on the king's lips.
