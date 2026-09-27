@@ -3,18 +3,30 @@
  * pure modules it imports.
  */
 
-import { addMonthsClamped, toDayNumber, toISODate, todayLocal, type DayNumber } from './dates';
-import { eventsForPerson, primaryLabel, type BirthdayEvent, type FractionLabel, type Person } from './events';
-import { ageText, dayFormats, errorText, relativeDays } from './format';
-import { denominatorWord, fractionName, type Fraction } from './fractions';
-import { calendarForCelebrations, calendarForEvents } from './ics';
-import { MODES, modeById, type Mode } from './modes';
+import {
+  PART_LENGTH,
+  checkBirthParts,
+  localeDateOrder,
+  partsFromISO,
+  splitPastedDate,
+  type DatePart,
+  type DateParts,
+} from './birthdate';
+import { candleRow } from './candles';
+import { addMonthsClamped, toDayNumber, todayLocal, type DayNumber } from './dates';
+import { occurrencesForPerson, primaryLabel, type Occurrence, type Person, type Source } from './events';
+import { ageText, dayFormats, daysText, errorText, listText, methodsText, relativeDays } from './format';
+import { denominatorWord, denominatorsUpTo, fractionName, type Fraction } from './fractions';
+import { calendarForCelebrations, calendarForOccurrences } from './ics';
+import { MODES, modesSupporting } from './modes';
 import { rankCelebrations, type Celebration } from './mutual';
 import {
   MAX_DENOMINATOR,
   MAX_WINDOW_DAYS,
+  SOLO_MAX_DENOMINATOR,
   decodeState,
   defaultState,
+  denominatorsForView,
   encodeState,
   newPersonId,
   validPeople,
@@ -26,6 +38,20 @@ import {
 const STORAGE_KEY = 'fractionalbdays.state.v1';
 const RANK_PAGE = 20;
 const ICS_LIMIT = 60;
+/** The denominator chips are hidden for now. While they are, every view uses its full set of denominators. */
+const SHOW_DENOMINATOR_PICKER = false;
+
+const PART_LABEL: Record<DatePart, string> = { year: 'Year', month: 'Month', day: 'Day' };
+const PART_PLACEHOLDER: Record<DatePart, string> = { year: 'YYYY', month: 'MM', day: 'DD' };
+/** Typing one of these moves on to the next box, as a separator does in a native date field. */
+const SEPARATOR_KEYS = new Set(['/', '-', '.', ',', ' ']);
+
+/** What is typed in one person's birthday boxes, finished or not. */
+interface BirthDraft {
+  parts: DateParts;
+  /** Focus has left the boxes at least once, so an unfinished date is worth pointing out. */
+  left: boolean;
+}
 
 type Child = Node | string | number | boolean | null | undefined | Child[];
 
@@ -88,18 +114,14 @@ function ageNode(years: number, f: Fraction): HTMLElement {
   );
 }
 
-function fractionText(label: FractionLabel, flagRounding: boolean): Child[] {
-  if (label.p === 0) return [h('span', { class: 'birthday-word' }, '\u{1F382} Birthday')];
-  const flagged = flagRounding && !label.exact;
-  return [
-    fractionNode(label),
-    h(
-      'span',
-      { class: 'fname' },
-      capitalize(fractionName(label)),
-      flagged ? h('span', { class: 'approx', title: 'Rounded' }, ' \u2248') : null,
-    ),
-  ];
+function fractionText(f: Fraction): Child[] {
+  if (f.p === 0) return [h('span', { class: 'birthday-word' }, '\u{1F382} Birthday')];
+  return [fractionNode(f), h('span', { class: 'fname' }, capitalize(fractionName(f)))];
+}
+
+/** "by weeks and days", or nothing when every mode that counts this denominator agrees on the date. */
+function methodNote(sources: readonly Source[], q: number): string {
+  return sources.length >= modesSupporting(q).length ? '' : `by ${methodsText(sources)}`;
 }
 
 function turnPhrase(name: string): string {
@@ -127,6 +149,13 @@ function toast(message: string): void {
 }
 
 function loadState(): AppState {
+  const state = readState();
+  // A choice saved earlier or carried by a link could not be seen or undone while the chips are hidden.
+  if (!SHOW_DENOMINATOR_PICKER) state.denominators = denominatorsUpTo(MAX_DENOMINATOR);
+  return state;
+}
+
+function readState(): AppState {
   const hash = location.hash.replace(/^#/, '');
   if (hash) return decodeState(hash);
   try {
@@ -148,16 +177,9 @@ function persist(state: AppState): void {
   }
 }
 
-function denominatorHint(mode: Mode): string {
-  switch (mode.id) {
-    case 'months':
-      return 'Only whole months exist here, so the choice is halves, thirds, quarters, sixths and twelfths.';
-    case 'weeks':
-      return 'Halves, quarters, sevenths and thirteenths are exact. ≈ marks fractions rounded to the nearest week.';
-    case 'days':
-      return 'Everything rounds to the nearest day, never more than half a day off.';
-  }
-}
+const DENOMINATOR_HINT =
+  'Every fraction is counted in weeks and in days. Halves, thirds, quarters, sixths and twelfths are also counted in months. The Me view stops at twelfths.';
+const ROUNDED_LEGEND = ' ≈ marks a date rounded to the nearest week.';
 
 function helpBody(): HTMLElement {
   return h(
@@ -168,19 +190,29 @@ function helpBody(): HTMLElement {
       null,
       'A fractional birthday is the moment you are a simple fraction of the way from one birthday to the next. The smaller the denominator, the more major it is: a half birthday beats a third, which beats a quarter. Fractions are always in lowest terms, so six twelfths is simply a half.',
     ),
+    h(
+      'p',
+      null,
+      'There is more than one fair way to count a year, so every fractional birthday is worked out three ways: in months, in weeks and in days. They often agree. When they don’t, every date is listed with the way of counting that gives it.',
+    ),
     MODES.map((mode) =>
-      h('section', null, h('h3', null, mode.name), mode.details.map((d) => h('p', null, d))),
+      h('section', null, h('h3', null, `Counting in ${mode.name.toLowerCase()}`), mode.details.map((d) => h('p', null, d))),
     ),
     h('h3', null, 'Together'),
     h(
       'p',
       null,
-      'A shared celebration is a day on which everyone has a fractional birthday within the chosen number of days. Shared days are ranked by adding up everyone’s denominators, lowest first. Ties go to the smaller largest denominator, then to the tighter spread of dates.',
+      'A shared celebration is a day on which everyone has a fractional birthday, counted any of the three ways, within the chosen number of days. At 0 days, everyone’s date is that very day. Celebrations are ranked by adding up everyone’s denominators, lowest first. Ties go to the smaller largest denominator, then to the tighter spread of dates.',
     ),
     h(
       'p',
       null,
-      'When two fractions land on the same day for one person, the exact one is the main label, and otherwise the lower denominator. The other fraction is still listed.',
+      'When the same fractional birthdays line up on more than one day, usually because the ways of counting land a day or two apart, they make one celebration that lists every day that works.',
+    ),
+    h(
+      'p',
+      null,
+      'If two fractions land on the same day for one person, that day counts as the one that is not rounded to the week, and otherwise as the lower denominator.',
     ),
   );
 }
@@ -189,6 +221,8 @@ export function mountApp(root: HTMLElement): void {
   let state = loadState();
   const today: DayNumber = toDayNumber(todayLocal());
   const horizon: DayNumber = toDayNumber(addMonthsClamped(todayLocal(), 12));
+  const dateOrder = localeDateOrder();
+  const drafts = new Map<string, BirthDraft>();
   let shownCelebrations = RANK_PAGE;
 
   // ----- shell -----------------------------------------------------------
@@ -201,32 +235,8 @@ export function mountApp(root: HTMLElement): void {
   const peopleList = h('div', { class: 'people-list' });
   const addButton = h('button', { type: 'button', class: 'btn ghost add', onClick: addPerson }, '+ Add a person');
 
-  const modeButtons = new Map<string, HTMLButtonElement>();
-  const modeSegment = h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Measure the year in' });
-  for (const mode of MODES) {
-    const button = h(
-      'button',
-      { type: 'button', role: 'radio', 'aria-checked': 'false', onClick: () => update({ mode: mode.id }) },
-      mode.name,
-    );
-    modeButtons.set(mode.id, button);
-    modeSegment.append(button);
-  }
-  const modeHint = h('p', { class: 'hint' });
-
   const chipButtons = new Map<number, HTMLButtonElement>();
-  const chips = h('div', { class: 'chips', role: 'group', 'aria-label': 'Denominators to include' });
-  for (let q = 2; q <= MAX_DENOMINATOR; q++) {
-    const button = h(
-      'button',
-      { type: 'button', class: 'chip', 'aria-pressed': 'false', onClick: () => toggleDenominator(q) },
-      String(q),
-      h('span', { class: 'mark', 'aria-hidden': 'true' }),
-    );
-    chipButtons.set(q, button);
-    chips.append(button);
-  }
-  const denomHint = h('p', { class: 'hint' });
+  const denominatorField = SHOW_DENOMINATOR_PICKER ? denominatorPicker() : null;
 
   const windowInput = h('input', {
     type: 'range',
@@ -237,6 +247,23 @@ export function mountApp(root: HTMLElement): void {
     onInput: (e: Event) => update({ windowDays: Number((e.target as HTMLInputElement).value) }),
   });
   const windowOut = h('output', { for: 'window' });
+
+  const settings = h(
+    'section',
+    { class: 'card settings' },
+    denominatorField,
+    h(
+      'div',
+      { class: 'field window-field' },
+      h('label', { for: 'window', class: 'field-label' }, 'Celebrate within ', windowOut, ' of everyone’s date'),
+      windowInput,
+      h(
+        'p',
+        { class: 'hint' },
+        'At 0, everyone’s fractional birthday falls on the celebration day itself. Allow a few days to find more dates.',
+      ),
+    ),
+  );
 
   const results = h('main', { class: 'results', 'aria-live': 'polite' });
   const icsButton = h('button', { type: 'button', class: 'btn ghost', onClick: exportCalendar }, 'Download .ics');
@@ -253,32 +280,7 @@ export function mountApp(root: HTMLElement): void {
     ),
     h('nav', { class: 'tabs', role: 'tablist', 'aria-label': 'View' }, tabButtons.me, tabButtons.together),
     h('section', { class: 'card people' }, h('h2', { class: 'card-title' }, 'Birthdays'), peopleList, addButton),
-    h(
-      'section',
-      { class: 'card settings' },
-      h('div', { class: 'field' }, h('div', { class: 'field-label' }, 'Measure the year in'), modeSegment, modeHint),
-      h(
-        'div',
-        { class: 'field' },
-        h('div', { class: 'field-label' }, 'Fractions to include, by denominator'),
-        chips,
-        h(
-          'div',
-          { class: 'chip-actions' },
-          h('button', { type: 'button', class: 'linkish', onClick: () => setDenominators('all') }, 'All'),
-          h('button', { type: 'button', class: 'linkish', onClick: () => setDenominators('classic') }, 'Halves, thirds, quarters'),
-          h('button', { type: 'button', class: 'linkish', onClick: () => setDenominators('none') }, 'None'),
-        ),
-        denomHint,
-      ),
-      h(
-        'div',
-        { class: 'field window-field' },
-        h('label', { for: 'window', class: 'field-label' }, 'Celebrate within ', windowOut, ' of everyone’s date'),
-        windowInput,
-        h('p', { class: 'hint' }, 'Set to 0 for days where the fractional birthdays coincide exactly.'),
-      ),
-    ),
+    settings,
     results,
     h('section', { class: 'actions' }, shareButton, icsButton),
     h('details', { class: 'card help' }, h('summary', null, 'How the math works'), helpBody()),
@@ -292,6 +294,7 @@ export function mountApp(root: HTMLElement): void {
 
   window.addEventListener('hashchange', () => {
     state = loadState();
+    drafts.clear();
     renderPeople();
     renderControls();
     renderResults();
@@ -307,6 +310,43 @@ export function mountApp(root: HTMLElement): void {
     renderResults();
   }
 
+  /** Chips for turning denominators on and off. Hidden for now, see SHOW_DENOMINATOR_PICKER. */
+  function denominatorPicker(): HTMLElement {
+    const chips = h('div', { class: 'chips', role: 'group', 'aria-label': 'Denominators to include' });
+    for (let q = 2; q <= MAX_DENOMINATOR; q++) {
+      const plural = denominatorWord(q, true);
+      const methods = listText(modesSupporting(q).map((m) => m.name.toLowerCase()));
+      const button = h(
+        'button',
+        {
+          type: 'button',
+          class: 'chip',
+          'aria-pressed': 'false',
+          'aria-label': `${q}, ${plural}`,
+          title: `${capitalize(plural)}, counted in ${methods}`,
+          onClick: () => toggleDenominator(q),
+        },
+        String(q),
+      );
+      chipButtons.set(q, button);
+      chips.append(button);
+    }
+    return h(
+      'div',
+      { class: 'field' },
+      h('div', { class: 'field-label' }, 'Fractions to include, by denominator'),
+      chips,
+      h(
+        'div',
+        { class: 'chip-actions' },
+        h('button', { type: 'button', class: 'linkish', onClick: () => setDenominators('all') }, 'All'),
+        h('button', { type: 'button', class: 'linkish', onClick: () => setDenominators('classic') }, 'Halves, thirds, quarters'),
+        h('button', { type: 'button', class: 'linkish', onClick: () => setDenominators('none') }, 'None'),
+      ),
+      h('p', { class: 'hint' }, DENOMINATOR_HINT),
+    );
+  }
+
   function toggleDenominator(q: number): void {
     const set = new Set(state.denominators);
     if (set.has(q)) set.delete(q);
@@ -315,8 +355,7 @@ export function mountApp(root: HTMLElement): void {
   }
 
   function setDenominators(preset: 'all' | 'classic' | 'none'): void {
-    const all: number[] = [];
-    for (let q = 2; q <= MAX_DENOMINATOR; q++) all.push(q);
+    const all = denominatorsUpTo(MAX_DENOMINATOR);
     update({ denominators: preset === 'all' ? all : preset === 'classic' ? [2, 3, 4] : [] });
   }
 
@@ -325,12 +364,13 @@ export function mountApp(root: HTMLElement): void {
     persist(state);
     renderPeople();
     renderResults();
-    const rows = peopleList.querySelectorAll<HTMLInputElement>('.person-row input[type="text"]');
-    rows[rows.length - 1]?.focus();
+    const names = peopleList.querySelectorAll<HTMLInputElement>('.person-row .name-input');
+    names[names.length - 1]?.focus();
   }
 
   function removePerson(id: string): void {
     state = { ...state, people: state.people.filter((p) => p.id !== id) };
+    drafts.delete(id);
     persist(state);
     renderPeople();
     renderResults();
@@ -343,37 +383,120 @@ export function mountApp(root: HTMLElement): void {
     renderResults();
   }
 
+  // ----- birthday boxes ------------------------------------------------------
+
+  /**
+   * Month, day and year as three number boxes in the locale's order. Nothing
+   * moves focus on its own; typing a separator such as / moves to the next
+   * box, and pasting a whole date fills all three.
+   */
+  function birthField(p: PersonInput, own: boolean, label: string, error: HTMLElement): HTMLElement {
+    const draft = drafts.get(p.id) ?? { parts: partsFromISO(p.birth), left: false };
+    drafts.set(p.id, draft);
+    const group = h('div', { class: 'birth', role: 'group', 'aria-label': label });
+    const boxes = new Map<DatePart, HTMLInputElement>();
+
+    /** Shows what is wrong. An unfinished date waits until focus has left the boxes. */
+    const check = (focusInside: boolean) => {
+      const result = checkBirthParts(draft.parts, todayLocal());
+      const unfinished = result.kind === 'partial' && draft.left && !focusInside;
+      error.textContent = result.kind === 'invalid' || unfinished ? result.message : '';
+      const wrong = result.kind === 'invalid' ? result.parts : [];
+      for (const [part, box] of boxes) {
+        if (wrong.includes(part)) box.setAttribute('aria-invalid', 'true');
+        else box.removeAttribute('aria-invalid');
+      }
+      return result;
+    };
+
+    const commit = () => {
+      const result = check(true);
+      const birth = result.kind === 'valid' ? result.iso : '';
+      if (state.people.find((x) => x.id === p.id)?.birth !== birth) changePerson(p.id, { birth });
+    };
+
+    const moveOn = (part: DatePart) => {
+      const nextPart = dateOrder[dateOrder.indexOf(part) + 1];
+      const next = nextPart ? boxes.get(nextPart) : undefined;
+      next?.focus();
+      next?.select();
+    };
+
+    for (const part of dateOrder) {
+      const box = h('input', {
+        type: 'text',
+        inputmode: 'numeric',
+        class: `part part-${part}`,
+        value: draft.parts[part],
+        placeholder: PART_PLACEHOLDER[part],
+        maxlength: PART_LENGTH[part],
+        autocomplete: own ? `bday-${part}` : 'off',
+        'aria-label': PART_LABEL[part],
+        'aria-describedby': error.id,
+        onInput: () => {
+          const digits = box.value.replace(/\D/g, '').slice(0, PART_LENGTH[part]);
+          if (digits !== box.value) box.value = digits;
+          draft.parts[part] = digits;
+          commit();
+        },
+        onKeydown: (e: KeyboardEvent) => {
+          // Leave shortcuts such as Ctrl or Cmd with minus (zoom out) to the browser.
+          if (e.ctrlKey || e.metaKey || e.altKey || !SEPARATOR_KEYS.has(e.key)) return;
+          e.preventDefault();
+          if (box.value) moveOn(part);
+        },
+        onPaste: (e: ClipboardEvent) => {
+          const pasted = splitPastedDate(e.clipboardData?.getData('text') ?? '', dateOrder);
+          if (!pasted) return;
+          e.preventDefault();
+          draft.parts = pasted;
+          for (const [name, target] of boxes) target.value = pasted[name];
+          commit();
+        },
+        onBlur: () => {
+          // Show a lone digit as 03, the way a saved date comes back.
+          if (part === 'year' || !/^[1-9]$/.test(box.value)) return;
+          box.value = `0${box.value}`;
+          draft.parts[part] = box.value;
+        },
+      });
+      boxes.set(part, box);
+      group.append(box);
+    }
+
+    group.addEventListener('focusin', () => check(true));
+    group.addEventListener('focusout', (e: FocusEvent) => {
+      if (e.relatedTarget instanceof Node && group.contains(e.relatedTarget)) return;
+      draft.left = true;
+      check(false);
+    });
+    check(false);
+    return group;
+  }
+
   // ----- rendering ---------------------------------------------------------
 
   function personRow(p: PersonInput, index: number): HTMLElement {
     const who = index === 0 ? 'your' : `person ${index + 1}’s`;
-    const onName = (e: Event) => changePerson(p.id, { name: (e.target as HTMLInputElement).value });
-    const onBirth = (e: Event) => changePerson(p.id, { birth: (e.target as HTMLInputElement).value });
     const nameInput = h('input', {
       type: 'text',
+      class: 'name-input',
       value: p.name,
       placeholder: index === 0 ? 'You' : 'Name',
       maxlength: 60,
       autocomplete: 'off',
       'aria-label': `Name (${who})`,
-      onInput: onName,
+      onInput: (e: Event) => changePerson(p.id, { name: (e.target as HTMLInputElement).value }),
     });
-    const birthInput = h('input', {
-      type: 'date',
-      value: p.birth,
-      min: '1900-01-01',
-      max: toISODate(todayLocal()),
-      'aria-label': capitalize(`${who} birthday`),
-      onInput: onBirth,
-      onChange: onBirth,
-    });
+    const error = h('p', { class: 'field-error', id: `birth-error-${p.id}`, 'aria-live': 'polite' });
     return h(
       'div',
       { class: 'person-row' },
-      h('div', { class: 'person-fields' }, nameInput, birthInput),
+      h('div', { class: 'person-fields' }, nameInput, birthField(p, index === 0, capitalize(`${who} birthday`), error)),
       index === 0
-        ? null
+        ? h('span', { class: 'icon-spacer', 'aria-hidden': 'true' })
         : h('button', { type: 'button', class: 'icon-btn', 'aria-label': `Remove person ${index + 1}`, onClick: () => removePerson(p.id) }, '×'),
+      error,
     );
   }
 
@@ -382,34 +505,21 @@ export function mountApp(root: HTMLElement): void {
   }
 
   function renderControls(): void {
-    const mode = modeById(state.mode);
     app.classList.toggle('view-me', state.view === 'me');
     app.classList.toggle('view-together', state.view === 'together');
     for (const [view, button] of Object.entries(tabButtons)) {
       button.setAttribute('aria-selected', String(view === state.view));
     }
-    for (const [id, button] of modeButtons) button.setAttribute('aria-checked', String(id === mode.id));
-    modeHint.textContent = mode.summary;
-
+    // Without the chips, the Me view has nothing to set, so the whole card goes.
+    settings.hidden = state.view === 'me' && !denominatorField;
     for (const [q, button] of chipButtons) {
-      const status = mode.status(q);
-      const note =
-        status === 'unsupported'
-          ? `not a whole number of ${mode.name.toLowerCase()}`
-          : status === 'rounded' && mode.flagRounding
-            ? 'rounded to the nearest week'
-            : 'exact';
       button.setAttribute('aria-pressed', String(state.denominators.includes(q)));
-      button.setAttribute('aria-label', `${q}, ${note}`);
-      button.disabled = status === 'unsupported';
-      button.title = capitalize(note);
-      const mark = button.querySelector('.mark');
-      if (mark) mark.textContent = status === 'rounded' && mode.flagRounding ? '\u2248' : '';
+      button.hidden = state.view === 'me' && q > SOLO_MAX_DENOMINATOR;
     }
-    denomHint.textContent = denominatorHint(mode);
 
-    windowInput.value = String(state.windowDays);
-    windowOut.textContent = `±${state.windowDays} ${state.windowDays === 1 ? 'day' : 'days'}`;
+    const w = state.windowDays;
+    windowInput.value = String(w);
+    windowOut.textContent = w === 0 ? '0 days' : `±${w} ${w === 1 ? 'day' : 'days'}`;
     icsButton.textContent = state.view === 'me' ? 'Add to calendar (.ics)' : 'Export top dates (.ics)';
   }
 
@@ -421,84 +531,119 @@ export function mountApp(root: HTMLElement): void {
     return h('div', { class: 'empty' }, message);
   }
 
+  /** One date with the modes that give it, ≈ when it is only a rounded week, dimmed once it has passed. */
+  function datedNode(date: DayNumber, sources: readonly Source[], q: number): HTMLElement {
+    const note = methodNote(sources, q);
+    const rounded = sources.every((s) => s.approx) ? sources[0] : undefined;
+    const past = date < today;
+    const notes = [
+      rounded ? `Rounded to the nearest week, ${errorText(rounded.errorDays)}` : '',
+      sources.some((s) => s.clamped) ? 'Moved to the end of a shorter month' : '',
+      past ? 'Already passed' : '',
+    ].filter(Boolean);
+    return h(
+      'span',
+      { class: past ? 'dated past' : 'dated', title: notes.length > 0 ? notes.join('. ') : null },
+      h('span', { class: 'dated-day' }, dayFormats.medium(date)),
+      note ? ` ${note}` : null,
+      rounded ? h('span', { class: 'approx' }, ' ≈') : null,
+    );
+  }
+
+  /** The dates of one fractional birthday, when the modes disagree about it. */
+  function datesList(o: Occurrence): HTMLElement | null {
+    if (o.dates.length < 2) return null;
+    return h(
+      'ul',
+      { class: 'dates', 'aria-label': 'Dates by way of counting' },
+      o.dates.map((d) => h('li', null, datedNode(d.date, d.sources, o.q))),
+    );
+  }
+
   function meView(): HTMLElement[] {
     const me = firstPerson();
     if (!me) return [empty('Enter your birthday to see every fractional birthday in the next year.')];
-    const mode = modeById(state.mode);
-    const events = eventsForPerson(me, mode, state.denominators, today, horizon);
-    if (events.length === 0) return [empty('No fractions are selected. Turn some denominators back on above.')];
+    const occurrences = occurrencesForPerson(me, MODES, denominatorsForView(state, 'me'), today, horizon);
+    const next = occurrences[0];
+    if (!next) return [empty('Nothing falls in the next year.')];
 
-    const next = events[0]!;
-    const nextLabel = primaryLabel(next);
     const nodes: HTMLElement[] = [
       h(
         'div',
-        { class: `next-card tier-${tierOf(nextLabel.q)}` },
+        { class: `next-card tier-${tierOf(next.q)}` },
         h('div', { class: 'eyebrow' }, `Next up · ${relativeDays(today, next.date)}`),
-        h('div', { class: 'next-fraction' }, fractionText(nextLabel, mode.flagRounding)),
+        h('div', { class: 'next-fraction' }, fractionText(next), candleRow(next)),
         h('div', { class: 'next-date' }, dayFormats.full(next.date)),
-        h('div', { class: 'next-age' }, `${turnPhrase(me.name)} `, ageNode(next.years, nextLabel)),
+        datesList(next),
+        h('div', { class: 'next-age' }, `${turnPhrase(me.name)} `, ageNode(next.years, next)),
       ),
     ];
+    if (occurrences.some((o) => o.dates.length > 1)) {
+      const rounded = occurrences.some((o) => o.dates.some((d) => d.approx));
+      nodes.push(
+        h(
+          'p',
+          { class: 'intro' },
+          'Counting the year in months, weeks or days can land a few days apart. When they disagree, each date says which way of counting gives it.',
+          rounded ? ROUNDED_LEGEND : null,
+        ),
+      );
+    }
 
     let currentMonth = '';
     let list: HTMLOListElement | null = null;
-    for (const event of events) {
-      const month = dayFormats.monthYear(event.date);
+    // The first one is already in the Next up card.
+    for (const o of occurrences.slice(1)) {
+      const month = dayFormats.monthYear(o.date);
       if (month !== currentMonth) {
         currentMonth = month;
         nodes.push(h('h3', { class: 'month-head' }, month));
         list = h('ol', { class: 'events' });
         nodes.push(list);
       }
-      list?.append(eventRow(event, mode));
+      list?.append(occurrenceRow(o));
     }
     return nodes;
   }
 
-  function eventRow(event: BirthdayEvent, mode: Mode): HTMLElement {
-    const label = primaryLabel(event);
-    const others = event.labels.slice(1);
-    const meta: Child[] = [ageNode(event.years, label), ' · ', relativeDays(today, event.date)];
-    if (mode.flagRounding && !label.exact) meta.push(' · ', `rounded, ${errorText(label.errorDays)}`);
-    if (label.clamped) meta.push(' · ', 'moved to the end of the month');
-    if (others.length > 0) {
-      meta.push(' · also ');
-      others.forEach((o, i) => {
-        if (i > 0) meta.push(', ');
-        meta.push(fractionNode(o), mode.flagRounding && !o.exact ? '\u2248' : '');
-      });
-    }
+  function occurrenceRow(o: Occurrence): HTMLElement {
     return h(
       'li',
-      { class: `event tier-${tierOf(label.q)}` },
+      { class: `event tier-${tierOf(o.q)}` },
       h(
         'div',
         { class: 'when' },
-        h('span', { class: 'dow' }, dayFormats.weekdayShort(event.date)),
-        h('span', { class: 'dom' }, dayFormats.dayOfMonth(event.date)),
+        h('span', { class: 'dow' }, dayFormats.weekdayShort(o.date)),
+        h('span', { class: 'dom' }, dayFormats.dayOfMonth(o.date)),
       ),
-      h('div', { class: 'what' }, h('div', { class: 'frac-line' }, fractionText(label, mode.flagRounding)), h('div', { class: 'meta' }, meta)),
+      h(
+        'div',
+        { class: 'what' },
+        h('div', { class: 'frac-line' }, fractionText(o)),
+        h('div', { class: 'meta' }, ageNode(o.years, o), ' · ', relativeDays(today, o.date)),
+        datesList(o),
+      ),
     );
   }
 
   function togetherView(): HTMLElement[] {
     const people = validPeople(state);
     if (people.length < 2) return [empty('Add at least one more person with a birthday to find days you can all celebrate.')];
-    const mode = modeById(state.mode);
-    const ranked = rankCelebrations(people, mode, state.denominators, today, horizon, state.windowDays);
+    const ranked = rankCelebrations(people, MODES, denominatorsForView(state, 'together'), today, horizon, state.windowDays);
     if (ranked.length === 0) {
       const hint =
-        mode.id === 'months'
-          ? 'In months mode every date keeps its own day of the month, so a group only lines up when those days are close together. Allow a few more days, or switch to weeks or days.'
-          : 'Allow a few more days, or switch to days for the most possible dates.';
-      return [empty(`No day in the next year lines up for everyone. ${hint}`)];
+        state.windowDays === 0
+          ? 'No day in the next year is a fractional birthday for everyone at once. Allow a day or two of difference above to find near misses.'
+          : 'No day in the next year lines up for everyone. Allow a few more days above.';
+      return [empty(hint)];
     }
 
     const shown = ranked.slice(0, shownCelebrations);
+    const count = `${ranked.length} shared ${ranked.length === 1 ? 'celebration' : 'celebrations'}`;
+    const rounded = shown.some((c) => c.personEvents.some((events) => events.some((e) => primaryLabel(e).approx)));
     const nodes: HTMLElement[] = [
-      h('p', { class: 'intro' }, `${ranked.length} shared ${ranked.length === 1 ? 'date' : 'dates'} in the next 12 months, most major first.`),
-      h('ol', { class: 'celebrations' }, shown.map((c, i) => celebrationItem(c, i + 1, people, mode))),
+      h('p', { class: 'intro' }, `${count} in the next 12 months, most major first.`, rounded ? ROUNDED_LEGEND : null),
+      h('ol', { class: 'celebrations' }, shown.map((c, i) => celebrationItem(c, i + 1, people))),
     ];
     if (ranked.length > shown.length) {
       nodes.push(
@@ -519,8 +664,7 @@ export function mountApp(root: HTMLElement): void {
     return nodes;
   }
 
-  function celebrationItem(c: Celebration, rank: number, people: Person[], mode: Mode): HTMLElement {
-    const dateText = c.first === c.last ? dayFormats.full(c.first) : `${dayFormats.medium(c.first)} – ${dayFormats.medium(c.last)}`;
+  function celebrationItem(c: Celebration, rank: number, people: Person[]): HTMLElement {
     const quality =
       c.maxQ === 1 ? 'everyone on their actual birthday' : `everyone at ${denominatorWord(c.maxQ, true)} or better`;
     const spread = c.spread === 0 ? '' : ` · ${c.spread} ${c.spread === 1 ? 'day' : 'days'} apart`;
@@ -531,21 +675,21 @@ export function mountApp(root: HTMLElement): void {
       h(
         'div',
         { class: 'cel-body' },
-        h('div', { class: 'cel-date' }, dateText),
+        h('div', { class: 'cel-date' }, daysText(c.days)),
         h('div', { class: 'cel-score' }, `Score ${c.sumQ} · ${quality}${spread}`),
         h(
           'ul',
           { class: 'cel-people' },
           c.events.map((e, i) => {
             const label = primaryLabel(e);
+            const dated = (c.personEvents[i] ?? [e]).map((ev) => datedNode(ev.date, primaryLabel(ev).sources, label.q));
             return h(
               'li',
               null,
               h('span', { class: 'who' }, people[i]?.name ?? '?'),
               h('span', { class: 'cel-frac' }, label.p === 0 ? '\u{1F382}' : fractionNode(label)),
               ageNode(e.years, label),
-              mode.flagRounding && !label.exact ? h('span', { class: 'approx' }, '\u2248') : null,
-              h('span', { class: 'cel-on' }, dayFormats.medium(e.date)),
+              h('span', { class: 'cel-on' }, dated),
             );
           }),
         ),
@@ -561,16 +705,15 @@ export function mountApp(root: HTMLElement): void {
   // ----- actions -----------------------------------------------------------
 
   function exportCalendar(): void {
-    const mode = modeById(state.mode);
     if (state.view === 'me') {
       const me = firstPerson();
       if (!me) return toast('Enter a birthday first');
-      const events = eventsForPerson(me, mode, state.denominators, today, horizon);
-      download('fractional-birthdays.ics', calendarForEvents(events, me, mode.name));
+      const occurrences = occurrencesForPerson(me, MODES, denominatorsForView(state, 'me'), today, horizon);
+      download('fractional-birthdays.ics', calendarForOccurrences(occurrences, me));
     } else {
       const people = validPeople(state);
       if (people.length < 2) return toast('Add more people first');
-      const ranked = rankCelebrations(people, mode, state.denominators, today, horizon, state.windowDays);
+      const ranked = rankCelebrations(people, MODES, denominatorsForView(state, 'together'), today, horizon, state.windowDays);
       if (ranked.length === 0) return toast('Nothing to export yet');
       download('shared-fractional-birthdays.ics', calendarForCelebrations(ranked.slice(0, ICS_LIMIT), people));
     }

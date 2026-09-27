@@ -4,7 +4,9 @@
  */
 
 import { fromDayNumber, type DayNumber } from './dates';
+import type { Source } from './events';
 import type { Fraction } from './fractions';
+import { modeName } from './modes';
 
 export function dayToUTCDate(n: DayNumber): Date {
   const c = fromDayNumber(n);
@@ -55,4 +57,38 @@ export function errorText(errorDays: number): string {
   const rounded = Math.round(magnitude * 10) / 10;
   const unit = rounded === 1 ? 'day' : 'days';
   return `${rounded} ${unit} ${errorDays < 0 ? 'early' : 'late'}`;
+}
+
+/** "a", "a and b", "a, b and c". */
+export function listText(items: readonly string[], conjunction = 'and'): string {
+  if (items.length <= 1) return items[0] ?? '';
+  return `${items.slice(0, -1).join(', ')} ${conjunction} ${items[items.length - 1]}`;
+}
+
+/** The modes behind a date in lower case: "weeks and days". */
+export function methodsText(sources: readonly Source[]): string {
+  return listText(sources.map((s) => modeName(s.mode).toLowerCase()));
+}
+
+/** Runs of consecutive days in an ascending list, as [first, last] pairs. */
+export function dayRuns(days: readonly DayNumber[]): [DayNumber, DayNumber][] {
+  const runs: [DayNumber, DayNumber][] = [];
+  for (const day of days) {
+    const run = runs[runs.length - 1];
+    if (run && day === run[1] + 1) run[1] = day;
+    else runs.push([day, day]);
+  }
+  return runs;
+}
+
+/**
+ * Days to choose from: one day in full ("Wednesday, July 15, 2026"),
+ * otherwise runs such as "Tue, Sep 8 – Thu, Sep 10" or "Fri, May 15 or Sun, May 17".
+ */
+export function daysText(days: readonly DayNumber[]): string {
+  if (days.length === 1) return dayFormats.full(days[0]!);
+  const runs = dayRuns(days).map(([a, b]) =>
+    a === b ? dayFormats.medium(a) : `${dayFormats.medium(a)} – ${dayFormats.medium(b)}`,
+  );
+  return listText(runs, 'or');
 }

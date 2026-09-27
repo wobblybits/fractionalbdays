@@ -4,14 +4,16 @@
  */
 
 import { fromDayNumber, type DayNumber } from './dates';
-import { primaryLabel, type BirthdayEvent, type Person } from './events';
+import { primaryLabel, type Occurrence, type Person } from './events';
 import { fractionName } from './fractions';
-import { ageText, dayFormats } from './format';
+import { ageText, dayFormats, daysText, methodsText } from './format';
 import type { Celebration } from './mutual';
 
 interface IcsEvent {
   uid: string;
   date: DayNumber;
+  /** Last day of an event that spans several days; defaults to `date`. */
+  lastDate?: DayNumber;
   summary: string;
   description?: string;
 }
@@ -62,7 +64,7 @@ export function buildCalendar(events: IcsEvent[], name: string, stamp: Date = ne
       `UID:${e.uid}`,
       `DTSTAMP:${dtstamp}`,
       `DTSTART;VALUE=DATE:${icsDate(e.date)}`,
-      `DTEND;VALUE=DATE:${icsDate(e.date + 1)}`,
+      `DTEND;VALUE=DATE:${icsDate((e.lastDate ?? e.date) + 1)}`,
       `SUMMARY:${escapeText(e.summary)}`,
     );
     if (e.description) lines.push(`DESCRIPTION:${escapeText(e.description)}`);
@@ -77,15 +79,23 @@ function possessive(name: string): string {
   return /s$/i.test(name) ? `${name}'` : `${name}'s`;
 }
 
-export function calendarForEvents(events: BirthdayEvent[], person: Person, modeName: string): string {
-  const items = events.map((e) => {
-    const label = primaryLabel(e);
-    const age = ageText(e.years, label);
+/**
+ * One all-day event per fractional birthday. When the modes disagree, the
+ * event spans every date they give, and the description says which is which.
+ */
+export function calendarForOccurrences(occurrences: Occurrence[], person: Person): string {
+  const items = occurrences.map((o): IcsEvent => {
+    const first = o.dates[0]?.date ?? o.date;
+    const last = o.dates[o.dates.length - 1]?.date ?? o.date;
+    const byMode = o.dates.map(
+      (d) => `${dayFormats.medium(d.date)} by ${methodsText(d.sources)}${d.approx ? ', rounded to the nearest week' : ''}.`,
+    );
     return {
-      uid: `fb-${person.id}-${icsDate(e.date)}@fractionalbdays`,
-      date: e.date,
-      summary: `${possessive(person.name)} ${fractionName(label)} (${age})`,
-      description: `Measured in ${modeName.toLowerCase()}.${label.exact ? '' : ' Rounded.'}`,
+      uid: `fb-${person.id}-${icsDate(first)}-${o.p}-${o.q}@fractionalbdays`,
+      date: first,
+      lastDate: last,
+      summary: `${possessive(person.name)} ${fractionName(o)} (${ageText(o.years, o)})`,
+      description: o.dates.length > 1 ? byMode.join(' ') : undefined,
     };
   });
   return buildCalendar(items, `${possessive(person.name)} fractional birthdays`);
@@ -97,11 +107,16 @@ export function calendarForCelebrations(celebrations: Celebration[], people: Per
       const label = primaryLabel(e);
       return `${people[i]?.name ?? '?'} ${ageText(e.years, label)} on ${dayFormats.short(e.date)}`;
     });
+    const notes = [
+      c.days.length > 1 ? `Works on ${daysText(c.days)}.` : '',
+      `Score ${c.sumQ} (lower is more major).`,
+      c.spread > 0 ? `Spread ${c.spread} ${c.spread === 1 ? 'day' : 'days'}.` : '',
+    ];
     return {
       uid: `fbm-${c.events.map((e) => icsDate(e.date)).join('-')}@fractionalbdays`,
       date: c.day,
       summary: `Fractional birthday party: ${parts.join(', ')}`,
-      description: `Score ${c.sumQ} (lower is more major). Spread ${c.spread} days.`,
+      description: notes.filter(Boolean).join(' '),
     };
   });
   return buildCalendar(items, 'Shared fractional birthdays');

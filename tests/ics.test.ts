@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { toDayNumber } from '../src/dates';
-import { eventsForPerson, type Person } from '../src/events';
+import { occurrencesForPerson, type Person } from '../src/events';
 import { denominatorsUpTo } from '../src/fractions';
-import { buildCalendar, calendarForCelebrations, calendarForEvents } from '../src/ics';
-import { monthsMode } from '../src/modes';
+import { buildCalendar, calendarForCelebrations, calendarForOccurrences } from '../src/ics';
+import { MODES, monthsMode } from '../src/modes';
 import { rankCelebrations } from '../src/mutual';
 
 const from = toDayNumber({ y: 2026, m: 1, d: 1 });
@@ -12,8 +12,8 @@ const to = toDayNumber({ y: 2027, m: 1, d: 1 });
 describe('iCalendar export', () => {
   it('writes one all-day event per fractional birthday', () => {
     const sam: Person = { id: 'p1', name: 'Sam', birth: { y: 1990, m: 7, d: 4 } };
-    const events = eventsForPerson(sam, monthsMode, denominatorsUpTo(13), from, to);
-    const ics = calendarForEvents(events, sam, 'Months');
+    const occurrences = occurrencesForPerson(sam, [monthsMode], denominatorsUpTo(13), from, to);
+    const ics = calendarForOccurrences(occurrences, sam);
     expect(ics.startsWith('BEGIN:VCALENDAR\r\n')).toBe(true);
     expect(ics.endsWith('END:VCALENDAR\r\n')).toBe(true);
     expect(ics.match(/BEGIN:VEVENT/g)).toHaveLength(12);
@@ -22,6 +22,17 @@ describe('iCalendar export', () => {
     expect(ics).toContain("SUMMARY:Sam's birthday (36)");
     expect(ics).toContain("SUMMARY:Sam's half birthday (35 1/2)");
     expect(ics.split('\r\n').every((line) => new TextEncoder().encode(line).length <= 75)).toBe(true);
+  });
+
+  it('spans the dates the modes give and says which is which', () => {
+    const sam: Person = { id: 'p1', name: 'Sam', birth: { y: 2000, m: 1, d: 1 } };
+    const occurrences = occurrencesForPerson(sam, MODES, [2], from, to);
+    const ics = calendarForOccurrences(occurrences, sam).replace(/\r\n /g, '');
+    expect(ics.match(/BEGIN:VEVENT/g)).toHaveLength(2);
+    expect(ics).toContain('DTSTART;VALUE=DATE:20260101\r\nDTEND;VALUE=DATE:20260102');
+    expect(ics).toContain('DTSTART;VALUE=DATE:20260701\r\nDTEND;VALUE=DATE:20260704');
+    expect(ics).toContain("SUMMARY:Sam's half birthday (26 1/2)");
+    for (const way of ['by months.', 'by weeks.', 'by days.']) expect(ics).toContain(way);
   });
 
   it('escapes text and folds long lines', () => {
@@ -40,7 +51,7 @@ describe('iCalendar export', () => {
       { id: 'a', name: 'Sam', birth: { y: 1990, m: 1, d: 15 } },
       { id: 'b', name: 'Alex', birth: { y: 1992, m: 7, d: 15 } },
     ];
-    const ranked = rankCelebrations(people, monthsMode, denominatorsUpTo(13), from, to, 0);
+    const ranked = rankCelebrations(people, [monthsMode], denominatorsUpTo(13), from, to, 0);
     const ics = calendarForCelebrations(ranked.slice(0, 3), people);
     expect(ics.match(/BEGIN:VEVENT/g)).toHaveLength(3);
     expect(ics).toContain('Sam 36 on Jan 15');

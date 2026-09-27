@@ -6,10 +6,13 @@
 import { parseISODate } from './dates';
 import { denominatorsUpTo } from './fractions';
 import type { Person } from './events';
-import type { ModeId } from './modes';
 
 export const MAX_DENOMINATOR = 13;
+/** The Me view leaves out thirteenths. */
+export const SOLO_MAX_DENOMINATOR = 12;
 export const MAX_WINDOW_DAYS = 7;
+/** 0 means everyone's fractional birthday falls on the celebration day itself. */
+export const DEFAULT_WINDOW_DAYS = 0;
 
 export type View = 'me' | 'together';
 
@@ -22,7 +25,6 @@ export interface PersonInput {
 
 export interface AppState {
   view: View;
-  mode: ModeId;
   denominators: number[];
   windowDays: number;
   people: PersonInput[];
@@ -37,14 +39,11 @@ export function newPersonId(): string {
 export function defaultState(): AppState {
   return {
     view: 'me',
-    mode: 'months',
     denominators: denominatorsUpTo(MAX_DENOMINATOR),
-    windowDays: 3,
+    windowDays: DEFAULT_WINDOW_DAYS,
     people: [{ id: newPersonId(), name: '', birth: '' }],
   };
 }
-
-const MODE_IDS: ModeId[] = ['months', 'weeks', 'days'];
 
 /** People with a usable birthday, in order. */
 export function validPeople(state: AppState): Person[] {
@@ -56,6 +55,11 @@ export function validPeople(state: AppState): Person[] {
   return out;
 }
 
+/** The denominators a view uses: the chosen ones, without thirteenths in the Me view. */
+export function denominatorsForView(state: AppState, view: View = state.view): number[] {
+  return view === 'me' ? state.denominators.filter((q) => q <= SOLO_MAX_DENOMINATOR) : state.denominators;
+}
+
 export function defaultName(index: number): string {
   return index === 0 ? 'You' : `Person ${index + 1}`;
 }
@@ -63,7 +67,6 @@ export function defaultName(index: number): string {
 export function encodeState(state: AppState): string {
   const params = new URLSearchParams();
   params.set('v', state.view);
-  params.set('m', state.mode);
   const all = denominatorsUpTo(MAX_DENOMINATOR);
   const chosen = [...state.denominators].sort((a, b) => a - b);
   if (chosen.length !== all.length || chosen.some((q, i) => q !== all[i])) {
@@ -77,7 +80,10 @@ export function encodeState(state: AppState): string {
   return params.toString();
 }
 
-/** Tolerant decode: anything malformed falls back to the default. */
+/**
+ * Tolerant decode: anything malformed falls back to the default. Links from
+ * before every mode was shown at once also carry `m`, which is ignored.
+ */
 export function decodeState(hash: string): AppState {
   const state = defaultState();
   const params = new URLSearchParams(hash.replace(/^#/, ''));
@@ -85,9 +91,6 @@ export function decodeState(hash: string): AppState {
 
   const view = params.get('v');
   if (view === 'me' || view === 'together') state.view = view;
-
-  const mode = params.get('m');
-  if (mode && (MODE_IDS as string[]).includes(mode)) state.mode = mode as ModeId;
 
   const q = params.get('q');
   if (q !== null) {
@@ -98,8 +101,8 @@ export function decodeState(hash: string): AppState {
     state.denominators = [...new Set(parsed)].sort((a, b) => a - b);
   }
 
-  const w = Number(params.get('w'));
-  if (Number.isInteger(w) && w >= 0 && w <= MAX_WINDOW_DAYS) state.windowDays = w;
+  const w = params.get('w');
+  if (w !== null && /^\d+$/.test(w) && Number(w) <= MAX_WINDOW_DAYS) state.windowDays = Number(w);
 
   const people = params.getAll('p');
   if (people.length > 0) {

@@ -1,7 +1,8 @@
 /**
  * The three ways of turning "p/q of the way through a birthday-year" into a
  * calendar date. Each mode is a strategy object; nothing else in the app knows
- * how any particular mode works.
+ * how any particular mode works. Every fractional birthday is counted by all
+ * of them, and the page shows each distinct date with the modes that give it.
  */
 
 import {
@@ -29,10 +30,9 @@ export type DenominatorStatus = 'exact' | 'rounded' | 'unsupported';
 
 export interface Mode {
   id: ModeId;
+  /** Capitalised; the page also uses it in lower case, as in "by months". */
   name: string;
-  /** One line for the UI. */
-  summary: string;
-  /** Longer explanation of the rules, shown in the help panel. */
+  /** Explanation of the rules, shown in the help panel. */
   details: string[];
   /** Whether fractions with this denominator appear at all, and whether they are exact. */
   status(q: number): DenominatorStatus;
@@ -58,11 +58,10 @@ const exactPlacement = (date: DayNumber, clamped = false): Placement => ({
 export const monthsMode: Mode = {
   id: 'months',
   name: 'Months',
-  summary: 'A year is 12 months. The day of the month stays the same.',
   details: [
-    'Only fractions that are a whole number of months exist: halves, thirds, quarters, sixths and twelfths. A fifth of a year is not a whole number of months, so there is no fifth birthday in this mode.',
-    'If the birthday is on the 29th, 30th or 31st and the target month is shorter, the date is pulled back to the last day of that month. It returns to the real day-of-month in the following long month.',
-    'People born on February 29 have their birthday on February 28 in common years, but their fractional birthdays stay on the 29th of their months.',
+    'A year is 12 months and the day of the month stays the same, so only fractions that are a whole number of months are counted this way: halves, thirds, quarters, sixths and twelfths.',
+    'If the birthday is on the 29th, 30th or 31st and the target month is shorter, the date is pulled back to the last day of that month. It returns to the real day of the month in the following long month.',
+    'People born on February 29 have their birthday on February 28 in common years, but their fractional birthdays counted in months stay on the 29th.',
   ],
   status(q) {
     return 12 % q === 0 ? 'exact' : 'unsupported';
@@ -86,11 +85,9 @@ const WEEK_YEAR_DAYS = 52 * 7;
 export const weeksMode: Mode = {
   id: 'weeks',
   name: 'Weeks',
-  summary: 'A year is 52 weeks. Halves, quarters, sevenths and thirteenths are exact.',
   details: [
-    'Fifty-two weeks is 364 days. A fraction is exact when it is a whole number of days in that year: a half is 26 weeks, a quarter is 13 weeks, a thirteenth is 4 weeks and a seventh is 52 days.',
-    'Every other fraction is rounded to the nearest whole week and marked with ≈. Those dates always fall on the same weekday as that year\'s birthday. The rounding can be up to three and a half days.',
-    'When a rounded fraction lands on the same week as an exact one, the exact one is the main label and the rounded one is listed beneath it.',
+    'A year is 52 weeks, which is 364 days. A fraction is exact when it is a whole number of days in that year: a half is 26 weeks, a quarter is 13 weeks, a thirteenth is 4 weeks and a seventh is 52 days.',
+    'Every other fraction is rounded to the nearest whole week and marked with ≈. Those dates always fall on the same weekday as that year\'s birthday, and they can be up to three and a half days off.',
   ],
   status(q) {
     return WEEK_YEAR_DAYS % q === 0 ? 'exact' : 'rounded';
@@ -113,11 +110,9 @@ export const weeksMode: Mode = {
 export const daysMode: Mode = {
   id: 'days',
   name: 'Days',
-  summary: 'A year is 365 days, or 366 across a leap day. Everything rounds to the nearest day.',
   details: [
-    'The year is the real number of days from one birthday to the next, so leap days are counted when they fall inside it.',
-    'A fraction is placed at the nearest whole day, which is never more than half a day from the true instant. Half of 365 days rounds up, so a half birthday comes 183 days after the birthday in a common year.',
-    'Almost nothing is exact in this mode. Fifths are exact in a 365-day year, and halves, thirds and sixths are exact in a 366-day year.',
+    'A year is the real number of days from one birthday to the next, 365 or 366, so a leap day counts when it falls inside the year.',
+    'Every fraction lands on the nearest whole day, never more than half a day from the true instant. Half of 365 days rounds up, so a half birthday comes 183 days after the birthday in a common year.',
   ],
   status() {
     return 'rounded';
@@ -139,6 +134,11 @@ export const daysMode: Mode = {
 
 export const MODES: readonly Mode[] = [monthsMode, weeksMode, daysMode];
 
-export function modeById(id: string): Mode {
-  return MODES.find((m) => m.id === id) ?? monthsMode;
+/** The modes that can place a fraction with denominator `q`, in `MODES` order. */
+export function modesSupporting(q: number, modes: readonly Mode[] = MODES): Mode[] {
+  return modes.filter((m) => m.status(q) !== 'unsupported');
+}
+
+export function modeName(id: ModeId): string {
+  return MODES.find((m) => m.id === id)?.name ?? id;
 }

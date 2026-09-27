@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fromDayNumber, toDayNumber, weekday, type CivilDate } from '../src/dates';
-import { daysMode, modeById, monthsMode, weeksMode } from '../src/modes';
+import { daysMode, modeName, modesSupporting, monthsMode, weeksMode } from '../src/modes';
 
 const civil = (y: number, m: number, d: number): CivilDate => ({ y, m, d });
 const on = (date: number) => fromDayNumber(date);
@@ -114,8 +114,10 @@ describe('days mode', () => {
 });
 
 describe('mode lookup', () => {
-  it('falls back to months', () => {
-    expect(modeById('weeks').id).toBe('weeks');
-    expect(modeById('nonsense').id).toBe('months');
+  it('lists the modes that can place a denominator', () => {
+    expect(modesSupporting(1).map((m) => m.id)).toEqual(['months', 'weeks', 'days']);
+    expect(modesSupporting(6).map((m) => m.id)).toEqual(['months', 'weeks', 'days']);
+    expect(modesSupporting(5).map((m) => m.id)).toEqual(['weeks', 'days']);
+    expect(modeName('weeks')).toBe('Weeks');
   });
 });

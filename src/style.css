@@ -123,6 +123,7 @@ body {
 
 .person-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 6px 0;
@@ -145,8 +146,7 @@ body {
   }
 }
 
-input[type="text"],
-input[type="date"] {
+input[type="text"] {
   width: 100%;
   min-height: 44px;
   padding: 8px 12px;
@@ -158,6 +158,42 @@ input[type="date"] {
   border-radius: 10px;
   -webkit-appearance: none;
   appearance: none;
+}
+
+.birth {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+
+.birth .part {
+  flex: 2 1 0;
+  min-width: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.birth .part-year {
+  flex-grow: 3;
+}
+
+input[aria-invalid="true"] {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.field-error {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.field-error:empty {
+  display: none;
 }
 
 input:focus-visible,
@@ -178,6 +214,16 @@ summary:focus-visible {
   line-height: 1;
   cursor: pointer;
   flex: none;
+}
+
+/* Keeps the first row's boxes in line with the rows below, which have a remove button. */
+.icon-spacer {
+  width: 40px;
+  flex: none;
+}
+
+.view-me .icon-spacer {
+  display: none;
 }
 
 .btn {
@@ -225,32 +271,6 @@ summary:focus-visible {
   color: var(--muted);
 }
 
-.segmented {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
-  background: var(--line);
-  padding: 4px;
-  border-radius: 12px;
-}
-
-.segmented button {
-  min-height: 40px;
-  border: 0;
-  border-radius: 9px;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.segmented button[aria-checked="true"] {
-  background: var(--card);
-  color: var(--ink);
-  box-shadow: var(--shadow);
-}
-
 .chips {
   display: flex;
   flex-wrap: wrap;
@@ -274,18 +294,6 @@ summary:focus-visible {
   background: var(--chip-on);
   color: var(--chip-on-ink);
   border-color: var(--chip-on);
-}
-
-.chip:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-  text-decoration: line-through;
-}
-
-.chip .mark {
-  font-size: 0.75em;
-  opacity: 0.75;
-  margin-left: 2px;
 }
 
 .chip-actions {
@@ -330,6 +338,87 @@ input[type="range"] {
   border-radius: var(--radius);
   padding: 16px;
   box-shadow: var(--shadow);
+}
+
+/* The row of candles beside the next fraction: the numerator's worth lit. */
+.candles {
+  align-self: center;
+  height: 2.6rem;
+  width: auto;
+  overflow: visible;
+}
+
+/* On a phone the name wraps anyway, so keep the candles beside the fraction and give the name its own line. */
+@media (max-width: 420px) {
+  .next-fraction .fname {
+    order: 1;
+    flex-basis: 100%;
+  }
+}
+
+.candles .candle-wax {
+  fill: var(--candle);
+}
+
+.candles .candle:not(.lit) .candle-wax {
+  opacity: 0.55;
+}
+
+.candles .hue-0 { --candle: #7fb7e8; }
+.candles .hue-1 { --candle: #f4c95d; }
+.candles .hue-2 { --candle: #9ad3a8; }
+.candles .hue-3 { --candle: #c8a2e8; }
+
+.candles .candle-stripes {
+  stroke: #ffffff;
+  stroke-width: 1.6;
+  opacity: 0.7;
+}
+
+.candles .wick {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+}
+
+.candles .flame-outer {
+  fill: #ff9d2e;
+}
+
+.candles .flame-core {
+  fill: #fff3b0;
+}
+
+.candles .glow {
+  fill: #ffd27a;
+  opacity: 0.3;
+  animation: glow 1.3s ease-in-out infinite;
+}
+
+.candles .flame {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: flicker 1.3s ease-in-out infinite;
+}
+
+@keyframes flicker {
+  0%, 100% { transform: rotate(-3deg) scale(1, 1); }
+  25% { transform: rotate(4deg) scale(0.92, 1.1); }
+  50% { transform: rotate(-2deg) scale(1.05, 0.94); }
+  75% { transform: rotate(3deg) scale(0.95, 1.06); }
+}
+
+@keyframes glow {
+  0%, 100% { opacity: 0.22; }
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .candles .flame,
+  .candles .glow {
+    animation: none;
+  }
 }
 
 .eyebrow {
@@ -485,6 +574,34 @@ input[type="range"] {
   font-weight: 500;
 }
 
+.dates {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.dated {
+  white-space: nowrap;
+}
+
+.dated-day {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.dated.past {
+  opacity: 0.55;
+}
+
+.next-card .dates {
+  margin-top: 2px;
+}
+
 .celebrations {
   list-style: none;
   margin: 0;
@@ -564,6 +681,10 @@ input[type="range"] {
 }
 
 .cel-people .cel-on {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0 12px;
   color: var(--muted);
   font-size: 0.875rem;
   margin-left: auto;

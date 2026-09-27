@@ -23,13 +23,13 @@ Pages has to be switched on once per repository, with the source set to "GitHub 
 
 ## How the math works
 
-A fractional birthday is the point p/q of the way through a birthday-year, with p/q in lowest terms. The smaller the denominator, the more major it is. Denominators run from 2 to 13 and can be toggled individually.
+A fractional birthday is the point p/q of the way through a birthday-year, with p/q in lowest terms. The smaller the denominator, the more major it is. Denominators run from 2 to 12 in the Me view and from 2 to 13 in the Together view. The chips for turning individual denominators off are hidden for now; `SHOW_DENOMINATOR_PICKER` in `src/ui.ts` brings them back.
 
-Three ways of measuring the year are offered:
+Every fractional birthday is counted three ways, and the page shows each distinct date with the ways of counting that give it. There is no switch between them.
 
 | Mode | Year is | Exact denominators | Everything else |
 |---|---|---|---|
-| Months | 12 months, day-of-month kept | 2, 3, 4, 6, 12 | not offered |
+| Months | 12 months, day-of-month kept | 2, 3, 4, 6, 12 | not counted this way |
 | Weeks | 52 weeks = 364 days | 2, 4, 7, 13 | rounded to the nearest whole week, marked ≈ |
 | Days | 365 or 366 days, the real span between anniversaries | depends on the year | rounded to the nearest day |
 
@@ -38,19 +38,25 @@ Details worth knowing:
 - Month-mode dates are computed from the birth date in a single step and clamped to the end of the month once, so someone born on the 31st stays on the 31st in long months.
 - Leap-day births have their anniversary on Feb 28 in common years, but their month-mode fractional birthdays stay on the 29th.
 - In weeks mode a seventh of a year is exactly 52 days, and a thirteenth is exactly 4 weeks.
-- When two fractions land on the same day for one person, the exact one is the main label, otherwise the lower denominator wins. The other fraction is still shown.
+- The Me view lists each fractional birthday once, with every date the modes give it. The modes rarely disagree by more than a few days, and the list is ordered by the earliest of those dates that has not passed.
+- When two fractions land on the same day for one person, the shared-celebration search counts that day as the one that is not rounded to the week (≈), and otherwise as the lower denominator.
 
 ### Shared celebrations
 
-A shared celebration is a day on which every person has a fractional birthday within the chosen window (0 to 7 days). Candidates are ranked by the sum of everyone's denominators, then by the largest denominator, then by how tightly the dates cluster. Lower is better throughout.
+A shared celebration is a day on which every person has a fractional birthday, counted any of the three ways, within the chosen window (0 to 7 days, 0 by default). Days on which the same people celebrate the same fractional birthdays are one celebration that lists every such day. Candidates are ranked by the sum of everyone's denominators, then by the largest denominator, then by how tightly the dates cluster. Lower is better throughout.
+
+### Entering birthdays
+
+A birthday is typed as three number boxes, in the order the browser's locale writes dates (month, day, year for en-US). A date picker opens on today and has to be scrolled back decades, which is slow for a birthday. Typing a separator such as `/` moves to the next box, nothing moves focus on its own, and pasting a whole date fills all three. Impossible values are flagged as soon as they are typed, while an unfinished date is only pointed out once focus leaves the boxes.
 
 ## Layout
 
 ```
+src/birthdate.ts  the birthday boxes: locale order, pasted dates, validation
 src/dates.ts      calendar arithmetic on integer day numbers, no time zones
 src/fractions.ts  reduced fractions, Farey enumeration, names
 src/modes.ts      the three modes as strategy objects
-src/events.ts     fractional birthdays for one person in a date window
+src/events.ts     fractional birthdays for one person, by date and by fraction
 src/mutual.ts     shared-celebration search and ranking
 src/format.ts     Intl date formatting and small text helpers
 src/ics.ts        iCalendar export
